@@ -1,5 +1,18 @@
-require('dotenv').config();
+/*********************************************************************************
+* WEB422 – Assignment 3
+*
+* I declare that this assignment is my own work in accordance with Seneca's
+* Academic Integrity Policy:
+*
+* https://www.senecapolytechnic.ca/about/policies/academic-integrity-policy.html
+*
+* Name: yahya osman Student ID: 179264239 Date: 03/12/2025
+*
+* Vercel App (Deployed) Link: _____________________________________________________
+*
+********************************************************************************/
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -44,8 +57,11 @@ app.get('/', (req, res) => {
 app.post('/api/user/register', (req, res) => {
   userService
     .registerUser(req.body)
-    .then(() => res.status(200).json({ message: 'User registered successfully.' }))
-    .catch((err) => res.status(400).json({ message: err }));
+    .then((msg) => res.status(200).json({ message: msg }))
+    .catch((err) => {
+      const message = err && err.message ? err.message : err;
+      res.status(400).json({ message });
+    });
 });
 
 app.post('/api/user/login', (req, res) => {
@@ -56,57 +72,46 @@ app.post('/api/user/login', (req, res) => {
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' });
       res.json({ message: 'Login successful', token });
     })
-    .catch((err) => res.status(400).json({ message: err }));
+    .catch((err) => {
+      const message = err && err.message ? err.message : err;
+      res.status(400).json({ message });
+    });
 });
 
 app.get('/api/user/favourites', requireJWT, (req, res) => {
   userService
     .getFavourites(req.user.userName)
     .then((favs) => res.json(favs))
-    .catch((err) => res.status(400).json({ message: err }));
+    .catch((err) => {
+      const message = err && err.message ? err.message : err;
+      res.status(400).json({ message });
+    });
 });
 
 app.put('/api/user/favourites/:id', requireJWT, (req, res) => {
   userService
     .addFavourite(req.user.userName, req.params.id)
     .then((favs) => res.json(favs))
-    .catch((err) => res.status(400).json({ message: err }));
+    .catch((err) => {
+      const message = err && err.message ? err.message : err;
+      res.status(400).json({ message });
+    });
 });
 
 app.delete('/api/user/favourites/:id', requireJWT, (req, res) => {
   userService
     .removeFavourite(req.user.userName, req.params.id)
     .then((favs) => res.json(favs))
-    .catch((err) => res.status(400).json({ message: err }));
-});
-
-let initialized = false;
-let initPromise = null;
-
-function ensureInitialized() {
-  if (!initPromise) {
-    initPromise = userService.initialize(process.env.MONGO_URL).then(() => {
-      initialized = true;
+    .catch((err) => {
+      const message = err && err.message ? err.message : err;
+      res.status(400).json({ message });
     });
-  }
-  return initPromise;
-}
-
-app.use(async (req, res, next) => {
-  if (!initialized) {
-    try {
-      await ensureInitialized();
-    } catch (err) {
-      return res.status(500).json({ message: 'Initialization error' });
-    }
-  }
-  next();
 });
 
 module.exports = app;
 
 if (!process.env.VERCEL) {
-  ensureInitialized().then(() => {
-    app.listen(HTTP_PORT, () => {});
+  app.listen(HTTP_PORT, () => {
+    console.log(`User API listening on: ${HTTP_PORT}`);
   });
 }
