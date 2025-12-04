@@ -1,117 +1,91 @@
-/*********************************************************************************
-* WEB422 – Assignment 3
-*
-* I declare that this assignment is my own work in accordance with Seneca's
-* Academic Integrity Policy:
-*
-* https://www.senecapolytechnic.ca/about/policies/academic-integrity-policy.html
-*
-* Name: yahya osman Student ID: 179264239 Date: 03/12/2025
-*
-* Vercel App (Deployed) Link: _____________________________________________________
-*
-********************************************************************************/
-
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
+const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
-const userService = require('./user-service');
+const userService = require('./user-service.js');
+
+dotenv.config();
+
+const ExtractJwt = passportJWT.ExtractJwt;
+const JwtStrategy = passportJWT.Strategy;
 
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
 
+app.use(express.json());
 app.use(cors());
-app.use(bodyParser.json());
-app.use(passport.initialize());
-
-const ExtractJwt = passportJWT.ExtractJwt;
-const JwtStrategy = passportJWT.Strategy;
 
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme('jwt'),
   secretOrKey: process.env.JWT_SECRET
 };
 
-const strategy = new JwtStrategy(jwtOptions, (jwt_payload, next) => {
-  userService
-    .getUserById(jwt_payload._id)
-    .then((user) => {
-      if (user) next(null, { _id: user._id, userName: user.userName });
-      else next(null, false);
-    })
-    .catch((err) => next(err, false));
+const strategy = new JwtStrategy(jwtOptions, (jwt_payload, done) => {
+  if (jwt_payload) {
+    done(null, { _id: jwt_payload._id, userName: jwt_payload.userName });
+  } else {
+    done(null, false);
+  }
 });
 
 passport.use(strategy);
-
-const requireJWT = passport.authenticate('jwt', { session: false });
-
-app.get('/', (req, res) => {
-  res.json({ message: 'User API is running.' });
-});
+app.use(passport.initialize());
 
 app.post('/api/user/register', (req, res) => {
-  userService
-    .registerUser(req.body)
-    .then((msg) => res.status(200).json({ message: msg }))
-    .catch((err) => {
-      const message = err && err.message ? err.message : err;
-      res.status(400).json({ message });
-    });
+  userService.registerUser(req.body)
+    .then(msg => res.json({ message: msg }))
+    .catch(msg => res.status(422).json({ message: msg }));
 });
 
 app.post('/api/user/login', (req, res) => {
-  userService
-    .checkUser(req.body)
-    .then((user) => {
+  userService.checkUser(req.body)
+    .then(user => {
       const payload = { _id: user._id, userName: user.userName };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' });
-      res.json({ message: 'Login successful', token });
+      const token = jwt.sign(payload, process.env.JWT_SECRET);
+      res.json({ message: 'login successful', token: token });
     })
-    .catch((err) => {
-      const message = err && err.message ? err.message : err;
-      res.status(400).json({ message });
-    });
+    .catch(msg => res.status(422).json({ message: msg }));
 });
 
-app.get('/api/user/favourites', requireJWT, (req, res) => {
-  userService
-    .getFavourites(req.user.userName)
-    .then((favs) => res.json(favs))
-    .catch((err) => {
-      const message = err && err.message ? err.message : err;
-      res.status(400).json({ message });
-    });
-});
+app.get('/api/user/favourites',
+  passport.authenticate('jwt', { session: false }),
+  (req, res) => {
+    userService.getFavourites(req.user._id)
+      .then(data => res.json(data))
+      .catch(msg => res.status(422).json({ error: msg }));
+  }
+);
 
-app.put('/api/user/favourites/:id', requireJWT, (req, res) => {
-  userService
-    .addFavourite(req.user.userName, req.params.id)
-    .then((favs) => res.json(favs))
-    .catch((err) => {
-      const message = err && err.message ? err.message : err;
-      res.status(400).json({ message });
-    });
-});
+app.put('/api/user/favourites/:id',
+  passport.authenticate('jwt', { session: false }),
+  (req, res) => {
+    userService.addFavourite(req.user._id, req.params.id)
+      .then(data => res.json(data))
+      .catch(msg => res.status(422).json({ error: msg }));
+  }
+);
 
-app.delete('/api/user/favourites/:id', requireJWT, (req, res) => {
-  userService
-    .removeFavourite(req.user.userName, req.params.id)
-    .then((favs) => res.json(favs))
-    .catch((err) => {
-      const message = err && err.message ? err.message : err;
-      res.status(400).json({ message });
-    });
-});
+app.delete('/api/user/favourites/:id',
+  passport.authenticate('jwt', { session: false }),
+  (req, res) => {
+    userService.removeFavourite(req.user._id, req.params.id)
+      .then(data => res.json(data))
+      .catch(msg => res.status(422).json({ error: msg }));
+  }
+);
+
+userService.connect()
+  .then(() => {
+    if (require.main === module) {
+      app.listen(HTTP_PORT, () => console.log('API listening on: ' + HTTP_PORT));
+    }
+  })
+  .catch(err => {
+    console.log(process.env.MONGO_URL);
+    console.log('unable to start the server: ' + err);
+    process.exit();
+  });
 
 module.exports = app;
-
-if (!process.env.VERCEL) {
-  app.listen(HTTP_PORT, () => {
-    console.log(`User API listening on: ${HTTP_PORT}`);
-  });
-}
