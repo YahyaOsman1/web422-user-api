@@ -1,16 +1,5 @@
-/*********************************************************************************
-* WEB422 – Assignment 3
-*
-* I declare that this assignment is my own work in accordance with Seneca's
-* Academic Integrity Policy:
-*
-* https://www.senecapolytechnic.ca/about/policies/academic-integrity-policy.html
-*
-* Name: yahya osman Student ID: 179264239 Date: 03/12/2025
-*
-* Vercel App (Deployed) Link: _____________________________________________________
-*
-********************************************************************************/
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -18,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
 const userService = require('./user-service');
-require('dotenv').config();
+
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
 
@@ -58,7 +47,6 @@ app.post('/api/user/register', (req, res) => {
     .then(() => res.status(200).json({ message: 'User registered successfully.' }))
     .catch((err) => res.status(400).json({ message: err }));
 });
- 
 
 app.post('/api/user/login', (req, res) => {
   userService
@@ -92,12 +80,33 @@ app.delete('/api/user/favourites/:id', requireJWT, (req, res) => {
     .catch((err) => res.status(400).json({ message: err }));
 });
 
-userService
-  .initialize(process.env.MONGO_URL)
-  .then(() => {
-    app.listen(HTTP_PORT, () => {
-      console.log(`User API listening on: ${HTTP_PORT}`);
-    });
-  })
-  .catch((err) => console.log(`Unable to start server: ${err}`));
+let initialized = false;
+let initPromise = null;
 
+function ensureInitialized() {
+  if (!initPromise) {
+    initPromise = userService.initialize(process.env.MONGO_URL).then(() => {
+      initialized = true;
+    });
+  }
+  return initPromise;
+}
+
+app.use(async (req, res, next) => {
+  if (!initialized) {
+    try {
+      await ensureInitialized();
+    } catch (err) {
+      return res.status(500).json({ message: 'Initialization error' });
+    }
+  }
+  next();
+});
+
+module.exports = app;
+
+if (!process.env.VERCEL) {
+  ensureInitialized().then(() => {
+    app.listen(HTTP_PORT, () => {});
+  });
+}
