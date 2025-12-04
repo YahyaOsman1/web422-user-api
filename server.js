@@ -58,6 +58,7 @@ app.post('/api/user/register', (req, res) => {
     .then(() => res.status(200).json({ message: 'User registered successfully.' }))
     .catch((err) => res.status(400).json({ message: err }));
 });
+ 
 
 app.post('/api/user/login', (req, res) => {
   userService
